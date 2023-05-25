@@ -1,0 +1,10 @@
+OpenAI
+gpt_index==0.4.24
+PyPDF2==3.0.1
+PyCryptodome==3.18.0
+gradio==3.32.0
+langchain==0.0.118
+docx2txt==0.8
+python-pptx==0.6.21
+torch
+transformers==4.29.2
