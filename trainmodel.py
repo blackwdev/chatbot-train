@@ -1,53 +1,46 @@
-from gpt_index import SimpleDirectoryReader, GPTListIndex, GPTSimpleVectorIndex, LLMPredictor, PromptHelper
+from llama_index import SimpleDirectoryReader, GPTListIndex, GPTVectorStoreIndex, LLMPredictor, PromptHelper, StorageContext, load_index_from_storage, ServiceContext
 from langchain.chat_models import ChatOpenAI
+from PIL import ImageFile
+
 import gradio as gr
 import sys
 import os
 
-os.environ["OPENAI_API_KEY"] = 'sk-'
+os.environ["OPENAI_API_KEY"] = ''
 
-def construct_index(directory_path):
-    max_input_size = 4096
-    num_outputs = 512
-    max_chunk_overlap = 20
-    chunk_size_limit = 600
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+max_input_size = 4096
+num_outputs = 512
+max_chunk_overlap = 20
+chunk_size_limit = 600
 
-    prompt_helper = PromptHelper(max_input_size, num_outputs, max_chunk_overlap, chunk_size_limit=chunk_size_limit)
+prompt_helper = PromptHelper(max_input_size, num_outputs, max_chunk_overlap, chunk_size_limit=chunk_size_limit)
 
-    llm_predictor = LLMPredictor(llm=ChatOpenAI(temperature=0.7, model_name="gpt-3.5-turbo", max_tokens=num_outputs))
+llm_predictor = LLMPredictor(llm=ChatOpenAI(temperature=0.7, model_name="gpt-3.5-turbo", max_tokens=num_outputs))
+
+service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
+
+def construct_index(directory_path):    
 
     documents = SimpleDirectoryReader(directory_path).load_data()
+    
+    index = GPTVectorStoreIndex.from_documents(
+        documents, service_context=service_context
+    )
+    # index = GPTVectorStoreIndex.from_documents(documents, llm_predictor=llm_predictor, prompt_helper=prompt_helper)
 
-    index = GPTSimpleVectorIndex(documents, llm_predictor=llm_predictor, prompt_helper=prompt_helper)
-
-    index.save_to_disk('index.json')
+    index.storage_context.persist()
+    # index.save_to_disk('index.json')
 
     return index
 
-# def construct_index(directory_path):
-#     max_input_size = 4096
-#     num_outputs = 256
-#     max_chunk_overlap = 20
-#     chunk_size_limit = 600
-
-#     llm_predictor = LLMPredictor(llm=OpenAI(temperature=0, model_name="text-davinci-003",
-#     max_tokens=num_outputs))
-#     prompt_helper = PromptHelper(max_input_size, num_outputs, max_chunk_overlap,
-#     chunk_size_limit=chunk_size_limit)
-
-#     service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor,
-#     prompt_helper=prompt_helper)
-
-#     documents = SimpleDirectoryReader(directory_path).load_data()
-
-#     index = GPTSimpleVectorIndex.from_documents(documents, service_context=service_context)
-
-#     index.save_to_disk('index.json')
-#     return index
-
 def chatbot(input_text):
-    index = GPTSimpleVectorIndex.load_from_disk('index.json')
-    response = index.query(input_text, response_mode="compact")
+    storage_context = StorageContext.from_defaults(persist_dir='./storage')
+    # load index
+    index = load_index_from_storage(storage_context, service_context=service_context)
+    # index = GPTVectorStoreIndex.load_from_disk('index.json', service_context=service_context)
+    query_engine = index.as_query_engine()
+    response = query_engine.query(input_text)
     return response.response
 
 iface = gr.Interface(fn=chatbot,
@@ -55,5 +48,5 @@ iface = gr.Interface(fn=chatbot,
                      outputs="text",
                      title="Custom-trained AI Chatbot")
 
-index = construct_index("docs")
-iface.launch(share=True)
+# index = construct_index("docs")
+# iface.launch(share=True)

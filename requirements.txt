@@ -1,5 +1,5 @@
 OpenAI
-gpt_index==0.4.24
+llama-index
 PyPDF2==3.0.1
 PyCryptodome==3.18.0
 gradio==3.32.0
